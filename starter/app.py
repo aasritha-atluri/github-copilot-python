@@ -15,11 +15,20 @@ def index():
 
 @app.route('/new')
 def new_game():
-    clues = int(request.args.get('clues', 35))
+    difficulty = request.args.get('difficulty', 'medium')
+    if difficulty == 'easy':
+        clues = 45
+    elif difficulty == 'hard':
+        clues = 25
+    else:
+        clues = 35
     puzzle, solution = sudoku_logic.generate_puzzle(clues)
     CURRENT['puzzle'] = puzzle
     CURRENT['solution'] = solution
-    return jsonify({'puzzle': puzzle})
+    return jsonify({
+        'puzzle': puzzle,
+        'difficulty': difficulty
+    })
 
 @app.route('/check', methods=['POST'])
 def check_solution():
@@ -34,6 +43,36 @@ def check_solution():
             if board[i][j] != solution[i][j]:
                 incorrect.append([i, j])
     return jsonify({'incorrect': incorrect})
+
+@app.route('/hint')
+def hint():
+    puzzle = CURRENT.get('puzzle')
+    solution = CURRENT.get('solution')
+    if puzzle is None or solution is None:
+        return jsonify({'error': 'No game in progress'}), 400
+    for i in range(sudoku_logic.SIZE):
+        for j in range(sudoku_logic.SIZE):
+            if puzzle[i][j] == 0:
+                puzzle[i][j] = solution[i][j]
+                return jsonify({
+                    'row': i,
+                    'col': j,
+                    'value': solution[i][j]
+                })
+    return jsonify({'message': 'Puzzle already complete'})
+
+@app.route('/validate', methods=['POST'])
+def validate():
+    data = request.json
+    row = data['row']
+    col = data['col']
+    value = data['value']
+    solution = CURRENT.get('solution')
+    if solution is None:
+        return jsonify({'valid': False})
+    return jsonify({
+        'valid': solution[row][col] == value
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)

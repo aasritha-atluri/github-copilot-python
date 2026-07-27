@@ -102,21 +102,33 @@ function saveScore() {
 
 function displayScores() {
     const scores = getStoredScores();
-    localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(scores.slice(0, 10))
-    );
-
-    const list = document.getElementById('scoreboard');
-    list.innerHTML = '';
+    const tableBody = document.getElementById("scoreboard");
+    tableBody.innerHTML = "";
     scores.forEach(score => {
-        const li = document.createElement('li');
-        const mins = String(Math.floor(score.time / 60)).padStart(2, '0');
-        const secs = String(score.time % 60).padStart(2, '0');
-        li.textContent =
-            `${score.name} | ${mins}:${secs} | ${score.difficulty} | Hints: ${score.hints}`;
-        list.appendChild(li);
+        let name = "Anonymous";
+        let time = 0;
+        let difficulty = "Unknown";
+        let hints = 0;
+        if (typeof score === "number") {
+            time = score;
+        } else {
+            name = score.name;
+            time = score.time;
+            difficulty = score.difficulty;
+            hints = score.hints;
+        }
+        const mins = String(Math.floor(time / 60)).padStart(2, "0");
+        const secs = String(time % 60).padStart(2, "0");
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${name}</td>
+            <td>${mins}:${secs}</td>
+            <td>${difficulty}</td>
+            <td>${hints}</td>
+        `;
+        tableBody.appendChild(row);
     });
+
 }
 
 function createBoardElement() {

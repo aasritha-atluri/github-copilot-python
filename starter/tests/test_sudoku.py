@@ -30,3 +30,9 @@ def test_is_safe():
     assert sudoku_logic.is_safe(board, 0, 0, 5)
     board[0][0] = 5
     assert not sudoku_logic.is_safe(board, 0, 1, 5)
+
+def test_generated_puzzle_has_unique_solution():
+    puzzle, _ = sudoku_logic.generate_puzzle(35)
+    # Create a copy so the original puzzle is not modified
+    puzzle_copy = [row[:] for row in puzzle]
+    assert sudoku_logic.count_solutions(puzzle_copy) == 1

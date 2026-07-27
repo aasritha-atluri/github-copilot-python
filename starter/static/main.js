@@ -4,6 +4,9 @@ let puzzle = [];
 let timer;
 let seconds = 0;
 const STORAGE_KEY = 'sudoku_scores';
+let hintsUsed = 0;
+let currentDifficulty = 'medium';
+let gameCompleted = false;
 function startTimer() {
     clearInterval(timer);
     seconds = 0;
@@ -20,26 +23,98 @@ function updateTimer() {
     document.getElementById('timer').innerText = `Time: ${mins}:${secs}`;
 }
 
-function saveScore() {
-    const scores = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    scores.push(seconds);
-    scores.sort((a, b) => a - b);
-    if (scores.length > 10) {
-        scores.length = 10;
+function normalizeScores(rawScores) {
+    if (!Array.isArray(rawScores)) {
+        return [];
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(scores));
+
+    return rawScores.reduce((normalized, score) => {
+        if (typeof score === 'number' && Number.isFinite(score)) {
+            normalized.push({
+                name: 'Anonymous',
+                time: Math.max(0, Math.floor(score)),
+                difficulty: 'Unknown',
+                hints: 0
+            });
+            return normalized;
+        }
+
+        if (score && typeof score === 'object') {
+            const normalizedScore = {
+                name: typeof score.name === 'string' && score.name.trim()
+                    ? score.name.trim()
+                    : 'Anonymous',
+                time: Number.isFinite(score.time) ? Math.max(0, Math.floor(score.time)) : 0,
+                difficulty: typeof score.difficulty === 'string' && score.difficulty.trim()
+                    ? score.difficulty
+                    : 'Unknown',
+                hints: Number.isFinite(score.hints) ? Math.max(0, Math.floor(score.hints)) : 0
+            };
+            normalized.push(normalizedScore);
+        }
+
+        return normalized;
+    }, []);
+}
+
+function getStoredScores() {
+    try {
+        const rawScores = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+        return normalizeScores(rawScores);
+    } catch (error) {
+        console.warn('Unable to read scoreboard data, resetting it.', error);
+        localStorage.removeItem(STORAGE_KEY);
+        return [];
+    }
+}
+
+function saveScore() {
+    if (gameCompleted) return;
+    gameCompleted = true;
+    const playerName =
+        document.getElementById('player-name').value.trim() || 'Anonymous';
+    const scores = getStoredScores();
+
+    const exists = scores.some(score =>
+        score.name === playerName &&
+        score.time === seconds &&
+        score.difficulty === currentDifficulty &&
+        score.hints === hintsUsed
+    );
+
+    if (exists) {
+        return;
+    }
+
+    scores.push({
+        name: playerName,
+        time: seconds,
+        difficulty: currentDifficulty,
+        hints: hintsUsed
+    });
+    scores.sort((a, b) => a.time - b.time);
+    localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(scores.slice(0, 10))
+    );
     displayScores();
 }
 
 function displayScores() {
-    const scores = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    const scores = getStoredScores();
+    localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(scores.slice(0, 10))
+    );
+
     const list = document.getElementById('scoreboard');
     list.innerHTML = '';
     scores.forEach(score => {
         const li = document.createElement('li');
-        const mins = String(Math.floor(score / 60)).padStart(2, '0');
-        const secs = String(score % 60).padStart(2, '0');
-        li.textContent = `${mins}:${secs}`;
+        const mins = String(Math.floor(score.time / 60)).padStart(2, '0');
+        const secs = String(score.time % 60).padStart(2, '0');
+        li.textContent =
+            `${score.name} | ${mins}:${secs} | ${score.difficulty} | Hints: ${score.hints}`;
         list.appendChild(li);
     });
 }
@@ -97,6 +172,9 @@ function renderPuzzle(puz) {
 
 async function newGame() {
   const difficulty = document.getElementById('difficulty').value;
+  currentDifficulty = difficulty;
+  hintsUsed = 0;
+  gameCompleted = false;  
   const res = await fetch(`/new?difficulty=${difficulty}`);
   const data = await res.json();
   renderPuzzle(data.puzzle);
@@ -155,14 +233,18 @@ async function giveHint() {
         alert(data.error);
         return;
     }
+    if (data.message) {
+        document.getElementById('message').innerText = data.message;
+        return;
+    }
     const boardDiv = document.getElementById('sudoku-board');
     const inputs = boardDiv.getElementsByTagName('input');
     const index = data.row * SIZE + data.col;
     inputs[index].value = data.value;
     inputs[index].disabled = true;
     inputs[index].className = 'sudoku-cell prefilled';
+    hintsUsed++;
 }
-
 async function validateCell(input) {
     if (input.disabled || input.value === '') {
         input.classList.remove('incorrect');
